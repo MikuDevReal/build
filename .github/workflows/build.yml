@@ -520,14 +520,6 @@ jobs:
           fi
 
       # ---------- FLUTTER ----------
-      # Flutter harus tersedia sebelum `flutter create` dipanggil.
-      - name: Bootstrap Flutter SDK
-        if: env.type == 'flutter'
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
       - name: Prepare Flutter project
         if: env.type == 'flutter'
         run: |
@@ -647,102 +639,35 @@ jobs:
 
       - name: Fix Flutter Android configuration (compileSdk 36 & signing)
         if: env.type == 'flutter'
-        shell: bash
         run: |
-          set -e
-          cd flutter-project
+          cd flutter-project/android/app
+          # Salin keystore
+          cp ../../../release.keystore .
 
-          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
-
-          # Salin keystore ke lokasi yang stabil.
-          cp ../release.keystore android/app/release.keystore
-
-          # key.properties dibaca oleh template Flutter Android untuk signing release.
-          cat > android/key.properties <<'EOF'
-          storePassword=password
-          keyPassword=password
-          keyAlias=release
-          storeFile=app/release.keystore
-          EOF
-
-          if [ -f android/app/build.gradle ]; then
-            python3 - <<'PY'
-          from pathlib import Path
-          p = Path("android/app/build.gradle")
-          s = p.read_text()
-
-          s = s.replace("compileSdk flutter.compileSdkVersion", "compileSdk 36")
-          s = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk 36")
-          s = s.replace("targetSdk flutter.targetSdkVersion", "targetSdk 36")
-          s = s.replace("targetSdk = flutter.targetSdkVersion", "targetSdk 36")
-
-          # Tambahkan release signing config jika belum ada.
-          if "signingConfigs" not in s:
-              s = s.replace(
-                  "android {",
-                  '''android {
-              signingConfigs {
-                  release {
-                      storeFile file("release.keystore")
-                      storePassword "password"
-                      keyAlias "release"
-                      keyPassword "password"
-                  }
-              }''',
-                  1
-              )
-
-          if "signingConfig signingConfigs.release" not in s:
-              s = s.replace(
-                  "release {",
-                  '''release {
-                      signingConfig signingConfigs.release''',
-                  1
-              )
-
-          p.write_text(s)
-          PY
-          elif [ -f android/app/build.gradle.kts ]; then
-            python3 - <<'PY'
-          from pathlib import Path
-          p = Path("android/app/build.gradle.kts")
-          s = p.read_text()
-
-          s = s.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
-          s = s.replace("targetSdk = flutter.targetSdkVersion", "targetSdk = 36")
-
-          # Recent Flutter templates may already contain signingConfigs.
-          # Only inject a release config when none exists.
-          if "signingConfigs" not in s:
-              s = s.replace(
-                  "android {",
-                  '''android {
-              signingConfigs {
-                  create("release") {
-                      storeFile = file("release.keystore")
-                      storePassword = "password"
-                      keyAlias = "release"
-                      keyPassword = "password"
-                  }
-              }''',
-                  1
-              )
-
-          if 'signingConfig = signingConfigs.getByName("release")' not in s:
-              s = s.replace(
-                  "release {",
-                  '''release {
-                      signingConfig = signingConfigs.getByName("release")''',
-                  1
-              )
-
-          p.write_text(s)
-          PY
+          # Perbaiki compileSdk dan targetSdk ke 36
+          if [ -f build.gradle ]; then
+            sed -i 's/compileSdk [0-9]*/compileSdk 36/g' build.gradle
+            sed -i 's/targetSdk [0-9]*/targetSdk 36/g' build.gradle
+            # Signing config
+            sed -i 's|storeFile file(".*")|storeFile file("release.keystore")|g' build.gradle
+            sed -i 's|storePassword ".*"|storePassword "password"|g' build.gradle
+            sed -i 's|keyAlias ".*"|keyAlias "release"|g' build.gradle
+            sed -i 's|keyPassword ".*"|keyPassword "password"|g' build.gradle
+          elif [ -f build.gradle.kts ]; then
+            sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' build.gradle.kts
+            sed -i 's/targetSdk = [0-9]*/targetSdk = 36/g' build.gradle.kts
+            sed -i 's|storeFile = file(".*")|storeFile = file("release.keystore")|g' build.gradle.kts
+            sed -i 's|storeFile.set(file(".*"))|storeFile.set(file("release.keystore"))|g' build.gradle.kts
+            sed -i 's|storePassword = ".*"|storePassword = "password"|g' build.gradle.kts
+            sed -i 's|storePassword.set(".*")|storePassword.set("password")|g' build.gradle.kts
+            sed -i 's|keyAlias = ".*"|keyAlias = "release"|g' build.gradle.kts
+            sed -i 's|keyAlias.set(".*")|keyAlias.set("release")|g' build.gradle.kts
+            sed -i 's|keyPassword = ".*"|keyPassword = "password"|g' build.gradle.kts
+            sed -i 's|keyPassword.set(".*")|keyPassword.set("password")|g' build.gradle.kts
+          else
+            echo "Tidak ditemukan build.gradle atau build.gradle.kts"
+            exit 1
           fi
-
-          echo "=== Android Gradle files ==="
-          ls -la android
-          ls -la android/app
 
       # Perbaikan untuk "ERROR: D8: java.lang.OutOfMemoryError: Metaspace":
       # runner GitHub Actions terbatas RAM-nya (~7GB), dan D8 (dexer Java->DEX)
