@@ -570,7 +570,22 @@ jobs:
 
             for dir in mipmap-hdpi mipmap-mdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
               mkdir -p android/app/src/main/res/$dir
+              # PENTING: project Flutter bawaan biasanya sudah punya
+              # ic_launcher dalam format lain (paling sering .webp, kadang
+              # .jpg). Kalau file lama ini tidak dihapus, folder yang sama
+              # akan berisi 2 file untuk resource nama yang sama
+              # (ic_launcher.png BARU + ic_launcher.webp LAMA) -> Gradle
+              # gagal dengan error "More than one file was found with OS
+              # independent path 'res/mipmap-.../ic_launcher...'". Hapus
+              # semua varian ekstensi dulu sebelum menulis PNG baru.
+              rm -f android/app/src/main/res/$dir/ic_launcher.*
+              rm -f android/app/src/main/res/$dir/ic_launcher_round.*
             done
+
+            # Adaptive icon (mipmap-anydpi-v2) juga bisa merujuk ke
+            # ic_launcher.xml yang mengarah ke drawable terpisah. Hapus juga
+            # supaya tidak ikut menimpa/bentrok dengan ic_launcher.png biasa.
+            rm -rf android/app/src/main/res/mipmap-anydpi-v2
 
             convert $ICON_SRC -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
             convert $ICON_SRC -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
