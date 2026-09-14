@@ -23,6 +23,16 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # Google sudah menghapus paket lama "tools" (Android SDK Tools)
+          # dari repository SDK. Action ini defaultnya minta "tools
+          # platform-tools", dan kalau "tools" tidak ketemu, sdkmanager
+          # exit 1 dan step ini gagal duluan sebelum sempat build apa pun.
+          # Project ini (Gradle/AGP untuk Web2APK & Flutter) tidak pernah
+          # butuh paket "tools" itu — build-tools & platforms sudah
+          # di-resolve otomatis oleh Android Gradle Plugin. Minta
+          # platform-tools saja.
+          packages: "platform-tools"
 
       - name: Install dependencies (ImageMagick, jq, unzip, curl)
         run: sudo apt-get update && sudo apt-get install -y imagemagick jq unzip curl
